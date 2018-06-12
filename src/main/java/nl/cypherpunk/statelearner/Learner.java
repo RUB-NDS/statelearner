@@ -41,6 +41,7 @@ import de.learnlib.algorithms.ttt.mealy.TTTLearnerMealy;
 import de.learnlib.api.EquivalenceOracle;
 import de.learnlib.api.LearningAlgorithm;
 import de.learnlib.api.SUL;
+import de.learnlib.api.SULException;
 import de.learnlib.cache.mealy.MealyCacheOracle;
 import de.learnlib.counterexamples.AcexLocalSuffixFinder;
 import de.learnlib.eqtests.basic.RandomWordsEQOracle.MealyRandomWordsEQOracle;
@@ -64,6 +65,8 @@ import nl.cypherpunk.statelearner.socket.SocketSUL;
 import nl.cypherpunk.statelearner.tls.TLSConfig;
 import nl.cypherpunk.statelearner.tls.TLSSUL;
 import nl.cypherpunk.statelearner.LogOracle.MealyLogOracle;
+
+import javax.annotation.Nullable;
 
 /**
  * @author Joeri de Ruiter (joeri@cs.ru.nl)
@@ -130,7 +133,41 @@ public class Learner {
 		// Create the membership oracle
 		//memOracle = new SULOracle<String, String>(sul);
 		// Add a logging oracle
-		logMemOracle = new MealyLogOracle<String, String>(sul, LearnLogger.getLogger("learning_queries"));		
+
+		SUL<String, String> sulWrapper = new SUL<String, String>() {
+			boolean sentCCS = false;
+			boolean tainted = false;
+			@Override
+			public void pre() {
+				sul.pre();
+				tainted = false;
+                sentCCS = false;
+			}
+
+			@Override
+			public void post() {
+				sul.post();
+			}
+
+			@Nullable
+			@Override
+			public String step(@Nullable String in) throws SULException {
+				if (in.equals("ChangeCipherSpec")) {
+					this.sentCCS = true;
+				}
+
+				if (tainted || (!sentCCS && (in.equals("PadAppDataPlain")
+						|| in.equals("PadAppDataMac")
+						|| in.equals("PadAppDataPadding")))) {
+				    tainted = true;
+					return "not interested";
+				}
+
+				return sul.step(in);
+			}
+		};
+
+		logMemOracle = new MealyLogOracle<String, String>(sulWrapper, LearnLogger.getLogger("learning_queries"));
         // Count the number of queries actually sent to the SUL
 		statsMemOracle = new MealyCounterOracle<String, String>(logMemOracle, "membership queries to SUL");
 		// Use cache oracle to prevent double queries to the SUL
@@ -174,8 +211,42 @@ public class Learner {
 		//TODO We could combine the two cached oracle to save some queries to the SUL
 		// Create the equivalence oracle
 		//eqOracle = new SULOracle<String, String>(sul);
+
+        SUL<String, String> sulWrapper = new SUL<String, String>() {
+            boolean sentCCS = false;
+            boolean tainted = false;
+            @Override
+            public void pre() {
+                sul.pre();
+                tainted = false;
+                sentCCS = false;
+            }
+
+            @Override
+            public void post() {
+                sul.post();
+            }
+
+            @Nullable
+            @Override
+            public String step(@Nullable String in) throws SULException {
+                if (in.equals("ChangeCipherSpec")) {
+                    this.sentCCS = true;
+                }
+
+                if (tainted || (!sentCCS && (in.equals("PadAppDataPlain")
+                        || in.equals("PadAppDataMac")
+                        || in.equals("PadAppDataPadding")))) {
+                    tainted = true;
+                    return "not interested";
+                }
+
+                return sul.step(in);
+            }
+        };
+
 		// Add a logging oracle
-		logEqOracle = new MealyLogOracle<String, String>(sul, LearnLogger.getLogger("equivalence_queries"));
+		logEqOracle = new MealyLogOracle<String, String>(sulWrapper, LearnLogger.getLogger("equivalence_queries"));
 		// Add an oracle that counts the number of queries
 		statsEqOracle = new MealyCounterOracle<String, String>(logEqOracle, "equivalence queries to SUL");
 		// Use cache oracle to prevent double queries to the SUL
