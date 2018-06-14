@@ -13,7 +13,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 package nl.cypherpunk.statelearner;
 
 import java.util.Collection;
@@ -37,141 +36,148 @@ import de.learnlib.oracles.DefaultQuery;
 /**
  * @author Joeri de Ruiter (j.deruiter@cs.bham.ac.uk)
  *
- *         Based on the original by Malte Isberner
+ * Based on the original by Malte Isberner
  */
 public class ModifiedWMethodEQOracle<A extends UniversalDeterministicAutomaton<?, I, ?, ?, ?> & Output<I, D>, I, D>
-		implements EquivalenceOracle<A, I, D> {
-	public static class DFAModifiedWMethodEQOracle<I> extends ModifiedWMethodEQOracle<DFA<?, I>, I, Boolean>
-			implements DFAEquivalenceOracle<I> {
-		public DFAModifiedWMethodEQOracle(int maxDepth, MembershipOracle<I, Boolean> sulOracle) {
-			super(maxDepth, sulOracle);
-		}
-	}
+        implements EquivalenceOracle<A, I, D> {
 
-	public static class MealyModifiedWMethodEQOracle<I, O> extends
-			ModifiedWMethodEQOracle<MealyMachine<?, I, ?, O>, I, Word<O>> implements MealyEquivalenceOracle<I, O> {
-		public MealyModifiedWMethodEQOracle(int maxDepth, MembershipOracle<I, Word<O>> sulOracle) {
-			super(maxDepth, sulOracle);
-		}
-	}
+    public static class DFAModifiedWMethodEQOracle<I> extends ModifiedWMethodEQOracle<DFA<?, I>, I, Boolean>
+            implements DFAEquivalenceOracle<I> {
 
-	private int maxDepth;
-	private final MembershipOracle<I, D> sulOracle;
+        public DFAModifiedWMethodEQOracle(int maxDepth, MembershipOracle<I, Boolean> sulOracle) {
+            super(maxDepth, sulOracle);
+        }
+    }
 
-	/**
-	 * Constructor.
-	 * 
-	 * @param maxDepth
-	 *            the maximum length of the "middle" part of the test cases
-	 * @param sulOracle
-	 *            interface to the system under learning
-	 */
-	public ModifiedWMethodEQOracle(int maxDepth, MembershipOracle<I, D> sulOracle) {
-		this.maxDepth = maxDepth;
-		this.sulOracle = sulOracle;
-	}
+    public static class MealyModifiedWMethodEQOracle<I, O> extends
+            ModifiedWMethodEQOracle<MealyMachine<?, I, ?, O>, I, Word<O>> implements MealyEquivalenceOracle<I, O> {
 
-	public void setMaxDepth(int maxDepth) {
-		this.maxDepth = maxDepth;
-	}
+        public MealyModifiedWMethodEQOracle(int maxDepth, MembershipOracle<I, Word<O>> sulOracle) {
+            super(maxDepth, sulOracle);
+        }
+    }
 
-	/*
+    private int maxDepth;
+    private final MembershipOracle<I, D> sulOracle;
+
+    /**
+     * Constructor.
+     *
+     * @param maxDepth the maximum length of the "middle" part of the test cases
+     * @param sulOracle interface to the system under learning
+     */
+    public ModifiedWMethodEQOracle(int maxDepth, MembershipOracle<I, D> sulOracle) {
+        this.maxDepth = maxDepth;
+        this.sulOracle = sulOracle;
+    }
+
+    public void setMaxDepth(int maxDepth) {
+        this.maxDepth = maxDepth;
+    }
+
+    /*
 	 * (non-Javadoc)
 	 * 
 	 * @see
 	 * de.learnlib.api.EquivalenceOracle#findCounterExample(java.lang.Object,
 	 * java.util.Collection)
-	 */
-	@Override
-	public DefaultQuery<I, D> findCounterExample(A hypothesis, Collection<? extends I> inputs) {
-		List<Word<I>> transCover = Automata.transitionCover(hypothesis, inputs);
-		List<Word<I>> charSuffixes = Automata.characterizingSet(hypothesis, inputs);
+     */
+    @Override
+    public DefaultQuery<I, D> findCounterExample(A hypothesis, Collection<? extends I> inputs) {
+        List<Word<I>> transCover = Automata.transitionCover(hypothesis, inputs);
+        List<Word<I>> charSuffixes = Automata.characterizingSet(hypothesis, inputs);
 
-		// Special case: List of characterizing suffixes may be empty,
-		// but in this case we still need to test!
-		if (charSuffixes.isEmpty())
-			charSuffixes = Collections.singletonList(Word.<I> epsilon());
+        // Special case: List of characterizing suffixes may be empty,
+        // but in this case we still need to test!
+        if (charSuffixes.isEmpty()) {
+            charSuffixes = Collections.singletonList(Word.<I>epsilon());
+        }
 
-		WordBuilder<I> wb = new WordBuilder<>();
+        WordBuilder<I> wb = new WordBuilder<>();
 
-		DefaultQuery<I, D> query;
-		D hypOutput;
-		String output;
-		Word<I> queryWord;
-		boolean blacklisted;
-		
-		HashSet<Word<I>> blacklist = new HashSet<Word<I>>();
+        DefaultQuery<I, D> query;
+        D hypOutput;
+        String output;
+        Word<I> queryWord;
+        boolean blacklisted;
 
-		for (Word<I> trans : transCover) {
-			query = new DefaultQuery<>(trans);
-			sulOracle.processQueries(Collections.singleton(query));
+        HashSet<Word<I>> blacklist = new HashSet<Word<I>>();
 
-			hypOutput = hypothesis.computeOutput(trans);
-			if (!Objects.equals(hypOutput, query.getOutput()))
-				return query;
+        for (Word<I> trans : transCover) {
+            query = new DefaultQuery<>(trans);
+            sulOracle.processQueries(Collections.singleton(query));
 
-			output = query.getOutput().toString();
+            hypOutput = hypothesis.computeOutput(trans);
+            if (!Objects.equals(hypOutput, query.getOutput())) {
+                return query;
+            }
 
-			// Detect closed connection to continue with queries with different prefixes
-			if (output.endsWith("ConnectionClosed") || output.endsWith("ConnectionClosedEOF") || output.endsWith("ConnectionClosedException")) {
-				blacklist.add(trans);				
-				continue;
-			}
+            output = query.getOutput().toString();
 
-			//for(int start = 1; start < maxDepth; start++) {
-				for (List<? extends I> middle : CollectionsUtil.allTuples(inputs, 1, maxDepth)) {
-					wb.append(trans).append(middle);
-					queryWord = wb.toWord();
-					wb.clear();
+            // Detect closed connection to continue with queries with different prefixes
+            if (output.endsWith("ConnectionClosed") || output.endsWith("ConnectionClosedEOF") || output.endsWith("ConnectionClosedException")) {
+                blacklist.add(trans);
+                continue;
+            }
 
-					// Check if trans | middle has a prefix on the blacklist
-					blacklisted = false;
-					for(Word<I> w: blacklist) {
-						if(w.isPrefixOf(queryWord)) {
-							blacklisted = true;
-							break;
-						}
-					}					
-					if(blacklisted) continue;
+            //for(int start = 1; start < maxDepth; start++) {
+            for (List<? extends I> middle : CollectionsUtil.allTuples(inputs, 1, maxDepth)) {
+                wb.append(trans).append(middle);
+                queryWord = wb.toWord();
+                wb.clear();
 
-					query = new DefaultQuery<>(queryWord);
-					sulOracle.processQueries(Collections.singleton(query));
-	
-					hypOutput = hypothesis.computeOutput(queryWord);
-	
-					if (!Objects.equals(hypOutput, query.getOutput()))
-						return query;
-	
-					output = query.getOutput().toString();
-	
-					if (output.endsWith("ConnectionClosed") || output.endsWith("ConnectionClosedEOF") || output.endsWith("ConnectionClosedException")) {
-						// Remember this prefix and ignore queries starting with this after this
-						blacklist.add(queryWord);
-						continue;
-					}
-	
-					for (Word<I> suffix : charSuffixes) {
-						wb.append(trans).append(middle).append(suffix);
-						queryWord = wb.toWord();
-						wb.clear();
-						
-						query = new DefaultQuery<>(queryWord);
-						hypOutput = hypothesis.computeOutput(queryWord);
-						sulOracle.processQueries(Collections.singleton(query));
-						
-						if (!Objects.equals(hypOutput, query.getOutput()))
-							return query;
-						
-						output = query.getOutput().toString();
-						if (output.endsWith("ConnectionClosed") || output.endsWith("ConnectionClosedEOF") || output.endsWith("ConnectionClosedException")) {
-							// Remember this prefix and ignore queries starting with this after this
-							blacklist.add(queryWord);
-						}
-					}
-				}
-			//}
-		}
+                // Check if trans | middle has a prefix on the blacklist
+                blacklisted = false;
+                for (Word<I> w : blacklist) {
+                    if (w.isPrefixOf(queryWord)) {
+                        blacklisted = true;
+                        break;
+                    }
+                }
+                if (blacklisted) {
+                    continue;
+                }
 
-		return null;
-	}
+                query = new DefaultQuery<>(queryWord);
+                sulOracle.processQueries(Collections.singleton(query));
+
+                hypOutput = hypothesis.computeOutput(queryWord);
+
+                if (!Objects.equals(hypOutput, query.getOutput())) {
+                    return query;
+                }
+
+                output = query.getOutput().toString();
+
+                if (output.endsWith("ConnectionClosed") || output.endsWith("ConnectionClosedEOF") || output.endsWith("ConnectionClosedException")) {
+                    // Remember this prefix and ignore queries starting with this after this
+                    blacklist.add(queryWord);
+                    continue;
+                }
+
+                for (Word<I> suffix : charSuffixes) {
+                    wb.append(trans).append(middle).append(suffix);
+                    queryWord = wb.toWord();
+                    wb.clear();
+
+                    query = new DefaultQuery<>(queryWord);
+                    hypOutput = hypothesis.computeOutput(queryWord);
+                    sulOracle.processQueries(Collections.singleton(query));
+
+                    if (!Objects.equals(hypOutput, query.getOutput())) {
+                        return query;
+                    }
+
+                    output = query.getOutput().toString();
+                    if (output.endsWith("ConnectionClosed") || output.endsWith("ConnectionClosedEOF") || output.endsWith("ConnectionClosedException")) {
+                        // Remember this prefix and ignore queries starting with this after this
+                        blacklist.add(queryWord);
+                    }
+                }
+            }
+            //}
+        }
+
+        return null;
+    }
 }

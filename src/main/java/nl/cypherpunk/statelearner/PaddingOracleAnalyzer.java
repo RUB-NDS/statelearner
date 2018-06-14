@@ -19,7 +19,7 @@ public class PaddingOracleAnalyzer {
     
     private static final String PADDING_MESSAGE_START = "Pad";
     
-    private static final String BLEICHENBACHER_MESSAGE_START = "Bleichenbacher";
+    private static final String BLEICHENBACHER_MESSAGE_START = "bleichenbacher";
 
     public static boolean isVulnerableToPaddingOracle(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet) {
         MealyMachine<Object, String, ?, String> tmpModel = (MealyMachine<Object, String, ?, String>) model;

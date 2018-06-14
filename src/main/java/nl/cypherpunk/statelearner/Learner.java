@@ -13,7 +13,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 package nl.cypherpunk.statelearner;
 
 import java.io.File;
@@ -75,150 +74,71 @@ import net.automatalib.graphs.dot.GraphDOTHelper;
  * @author Joeri de Ruiter (joeri@cs.ru.nl)
  */
 public class Learner {
-	LearningConfig config;
-	SimpleAlphabet<String> alphabet;
-	SUL<String, String> sul;
-	SULOracle<String, String> memOracle;
-	MealyLogOracle<String, String> logMemOracle;
-	MealyCounterOracle<String, String> statsMemOracle;
-	MealyCacheOracle<String, String> cachedMemOracle;
-	MealyCounterOracle<String, String> statsCachedMemOracle;	
-	LearningAlgorithm<MealyMachine<?, String, ?, String>, String, Word<String>> learningAlgorithm;
 
-	SULOracle<String, String> eqOracle;
-	MealyLogOracle<String, String> logEqOracle;
-	MealyCounterOracle<String, String> statsEqOracle;
-	MealyCacheOracle<String, String> cachedEqOracle;
-	MealyCounterOracle<String, String> statsCachedEqOracle;
-	EquivalenceOracle<MealyMachine<?, String, ?, String>, String, Word<String>> equivalenceAlgorithm;
-	
-	public Learner(LearningConfig config) throws Exception {
-		this.config = config;
-		
-		// Create output directory if it doesn't exist
-		Path path = Paths.get(config.output_dir);
-		if(Files.notExists(path)) {
-			Files.createDirectories(path);
-		}
-		
-		configureLogging(config.output_dir);
-		
-		LearnLogger log = LearnLogger.getLogger(Learner.class.getSimpleName());
+    LearningConfig config;
+    SimpleAlphabet<String> alphabet;
+    SUL<String, String> sul;
+    SULOracle<String, String> memOracle;
+    MealyLogOracle<String, String> logMemOracle;
+    MealyCounterOracle<String, String> statsMemOracle;
+    MealyCacheOracle<String, String> cachedMemOracle;
+    MealyCounterOracle<String, String> statsCachedMemOracle;
+    LearningAlgorithm<MealyMachine<?, String, ?, String>, String, Word<String>> learningAlgorithm;
 
-		// Check the type of learning we want to do and create corresponding configuration and SUL
-		if(config.type == LearningConfig.TYPE_SMARTCARD) {
-			log.log(Level.INFO, "Using smartcard SUL");	
-			
-			// Create the smartcard SUL
-			sul = new SCSUL(new SCConfig(config));
-			alphabet = ((SCSUL)sul).getAlphabet();			
-		}
-		else if(config.type == LearningConfig.TYPE_SOCKET) {
-			log.log(Level.INFO, "Using socket SUL");
-			
-			// Create the socket SUL
-			sul = new SocketSUL(new SocketConfig(config));
-			alphabet = ((SocketSUL)sul).getAlphabet();			
-		}
-		else if(config.type == LearningConfig.TYPE_TLS) {
-			log.log(Level.INFO, "Using TLS SUL");
-			
-			// Create the TLS SUL
-			sul = new TLSSUL(new TLSConfig(config));
-			alphabet = ((TLSSUL)sul).getAlphabet();			
-		}
-		
-		loadLearningAlgorithm(config.learning_algorithm, alphabet, sul);
-		loadEquivalenceAlgorithm(config.eqtest, alphabet, sul);
-	}
-	
-	public void loadLearningAlgorithm(String algorithm, SimpleAlphabet<String> alphabet, SUL<String, String> sul) throws Exception {
-		// Create the membership oracle
-		//memOracle = new SULOracle<String, String>(sul);
-		// Add a logging oracle
+    SULOracle<String, String> eqOracle;
+    MealyLogOracle<String, String> logEqOracle;
+    MealyCounterOracle<String, String> statsEqOracle;
+    MealyCacheOracle<String, String> cachedEqOracle;
+    MealyCounterOracle<String, String> statsCachedEqOracle;
+    EquivalenceOracle<MealyMachine<?, String, ?, String>, String, Word<String>> equivalenceAlgorithm;
 
-		SUL<String, String> sulWrapper = new SUL<String, String>() {
-			boolean sentCCS = false;
-			boolean tainted = false;
-			@Override
-			public void pre() {
-				sul.pre();
-				tainted = false;
-                sentCCS = false;
-			}
+    public Learner(LearningConfig config) throws Exception {
+        this.config = config;
 
-			@Override
-			public void post() {
-				sul.post();
-			}
+        // Create output directory if it doesn't exist
+        Path path = Paths.get(config.output_dir);
+        if (Files.notExists(path)) {
+            Files.createDirectories(path);
+        }
 
-			@Nullable
-			@Override
-			public String step(@Nullable String in) throws SULException {
-				if (in.equals("ChangeCipherSpec")) {
-					this.sentCCS = true;
-				}
+        configureLogging(config.output_dir);
 
-				if (tainted || (!sentCCS && (in.equals("PadAppDataPlain")
-						|| in.equals("PadAppDataMac")
-                                                || in.equals("PadAppDataFF")
-						|| in.equals("PadAppDataPadding")))) {
-				    tainted = true;
-					return "not interested";
-				}
+        LearnLogger log = LearnLogger.getLogger(Learner.class.getSimpleName());
 
-				return sul.step(in);
-			}
-		};
+        // Check the type of learning we want to do and create corresponding configuration and SUL
+        if (config.type == LearningConfig.TYPE_SMARTCARD) {
+            log.log(Level.INFO, "Using smartcard SUL");
 
-		logMemOracle = new MealyLogOracle<String, String>(sulWrapper, LearnLogger.getLogger("learning_queries"));
-        // Count the number of queries actually sent to the SUL
-		statsMemOracle = new MealyCounterOracle<String, String>(logMemOracle, "membership queries to SUL");
-		// Use cache oracle to prevent double queries to the SUL
-		//cachedMemOracle = MealyCacheOracle.createDAGCacheOracle(alphabet, statsMemOracle);
-        // Count the number of queries to the cache
-		statsCachedMemOracle = new MealyCounterOracle<String, String>(statsMemOracle, "membership queries to cache");
-		
-		// Instantiate the selected learning algorithm
-		switch(algorithm.toLowerCase()) {
-			case "lstar":
-				learningAlgorithm = new ExtensibleLStarMealyBuilder<String, String>().withAlphabet(alphabet).withOracle(statsCachedMemOracle).create();
-				break;
-				 	
-			case "dhc":
-				learningAlgorithm = new MealyDHC<String, String>(alphabet, statsCachedMemOracle);
-				break;
-				
-			case "kv":
-				learningAlgorithm = new KearnsVaziraniMealy<String, String>(alphabet, statsCachedMemOracle, true, AcexAnalyzers.BINARY_SEARCH);
-				break;
-				
-			case "ttt":
-				AcexLocalSuffixFinder suffixFinder = new AcexLocalSuffixFinder(AcexAnalyzers.BINARY_SEARCH, true, "Analyzer");
-				learningAlgorithm = new TTTLearnerMealy<String, String>(alphabet, statsCachedMemOracle, suffixFinder);
-				break;
-				
-			case "mp":
-				learningAlgorithm = new MalerPnueliMealy<String, String>(alphabet, statsCachedMemOracle);
-				break;
-				
-			case "rs":
-				learningAlgorithm = new RivestSchapireMealy<String, String>(alphabet, statsCachedMemOracle);
-				break;
+            // Create the smartcard SUL
+            sul = new SCSUL(new SCConfig(config));
+            alphabet = ((SCSUL) sul).getAlphabet();
+        } else if (config.type == LearningConfig.TYPE_SOCKET) {
+            log.log(Level.INFO, "Using socket SUL");
 
-			default:
-				throw new Exception("Unknown learning algorithm " + config.learning_algorithm);
-		}		
-	}
-	
-	public void loadEquivalenceAlgorithm(String algorithm, SimpleAlphabet<String> alphabet, SUL<String, String> sul) throws Exception {
-		//TODO We could combine the two cached oracle to save some queries to the SUL
-		// Create the equivalence oracle
-		//eqOracle = new SULOracle<String, String>(sul);
+            // Create the socket SUL
+            sul = new SocketSUL(new SocketConfig(config));
+            alphabet = ((SocketSUL) sul).getAlphabet();
+        } else if (config.type == LearningConfig.TYPE_TLS) {
+            log.log(Level.INFO, "Using TLS SUL");
+
+            // Create the TLS SUL
+            sul = new TLSSUL(new TLSConfig(config));
+            alphabet = ((TLSSUL) sul).getAlphabet();
+        }
+
+        loadLearningAlgorithm(config.learning_algorithm, alphabet, sul);
+        loadEquivalenceAlgorithm(config.eqtest, alphabet, sul);
+    }
+
+    public void loadLearningAlgorithm(String algorithm, SimpleAlphabet<String> alphabet, SUL<String, String> sul) throws Exception {
+        // Create the membership oracle
+        //memOracle = new SULOracle<String, String>(sul);
+        // Add a logging oracle
 
         SUL<String, String> sulWrapper = new SUL<String, String>() {
             boolean sentCCS = false;
             boolean tainted = false;
+
             @Override
             public void pre() {
                 sul.pre();
@@ -240,6 +160,7 @@ public class Learner {
 
                 if (tainted || (!sentCCS && (in.equals("PadAppDataPlain")
                         || in.equals("PadAppDataMac")
+                        || in.equals("PadAppDataFF")
                         || in.equals("PadAppDataPadding")))) {
                     tainted = true;
                     return "not interested";
@@ -249,163 +170,228 @@ public class Learner {
             }
         };
 
-		// Add a logging oracle
-		logEqOracle = new MealyLogOracle<String, String>(sulWrapper, LearnLogger.getLogger("equivalence_queries"));
-		// Add an oracle that counts the number of queries
-		statsEqOracle = new MealyCounterOracle<String, String>(logEqOracle, "equivalence queries to SUL");
-		// Use cache oracle to prevent double queries to the SUL
-		//cachedEqOracle = MealyCacheOracle.createDAGCacheOracle(alphabet, statsEqOracle);
+        logMemOracle = new MealyLogOracle<String, String>(sulWrapper, LearnLogger.getLogger("learning_queries"));
+        // Count the number of queries actually sent to the SUL
+        statsMemOracle = new MealyCounterOracle<String, String>(logMemOracle, "membership queries to SUL");
+        // Use cache oracle to prevent double queries to the SUL
+        //cachedMemOracle = MealyCacheOracle.createDAGCacheOracle(alphabet, statsMemOracle);
         // Count the number of queries to the cache
-		statsCachedEqOracle = new MealyCounterOracle<String, String>(statsEqOracle, "equivalence queries to cache");
-		
-		// Instantiate the selected equivalence algorithm
-		switch(algorithm.toLowerCase()) {
-			case "wmethod":
-				equivalenceAlgorithm = new WMethodEQOracle.MealyWMethodEQOracle<String, String>(config.max_depth, statsCachedEqOracle);
-				break;
+        statsCachedMemOracle = new MealyCounterOracle<String, String>(statsMemOracle, "membership queries to cache");
 
-			case "modifiedwmethod":
-				equivalenceAlgorithm = new MealyModifiedWMethodEQOracle<String, String>(config.max_depth, statsCachedEqOracle);
-				break;
-				
-			case "wpmethod":
-				equivalenceAlgorithm = new WpMethodEQOracle.MealyWpMethodEQOracle<String, String>(config.max_depth, statsCachedEqOracle);
-				break;
-				
-			case "randomwords":
-				equivalenceAlgorithm = new MealyRandomWordsEQOracle<String, String>(statsCachedEqOracle, config.min_length, config.max_length, config.nr_queries, new Random(config.seed));
-				break;
-				
-			default:
-				throw new Exception("Unknown equivalence algorithm " + config.eqtest);
-		}	
-	}
-	
-	public void learn() throws IOException, InterruptedException {
-		LearnLogger log = LearnLogger.getLogger(Learner.class.getSimpleName());
+        // Instantiate the selected learning algorithm
+        switch (algorithm.toLowerCase()) {
+            case "lstar":
+                learningAlgorithm = new ExtensibleLStarMealyBuilder<String, String>().withAlphabet(alphabet).withOracle(statsCachedMemOracle).create();
+                break;
 
-		//log.log(Level.INFO, "Using learning algorithm " + learningAlgorithm.getClass().getSimpleName());
-		//log.log(Level.INFO, "Using equivalence algorithm " + equivalenceAlgorithm.getClass().getSimpleName());
-		
-		//log.log(Level.INFO, "Starting learning");
-		
-		SimpleProfiler.start("Total time");
-		
-		boolean learning = true;
-		Counter round = new Counter("Rounds", "");
+            case "dhc":
+                learningAlgorithm = new MealyDHC<String, String>(alphabet, statsCachedMemOracle);
+                break;
 
-		round.increment();
-		//log.logPhase("Starting round " + round.getCount());
-		SimpleProfiler.start("Learning");
-		learningAlgorithm.startLearning();
-		SimpleProfiler.stop("Learning");
+            case "kv":
+                learningAlgorithm = new KearnsVaziraniMealy<String, String>(alphabet, statsCachedMemOracle, true, AcexAnalyzers.BINARY_SEARCH);
+                break;
 
-		MealyMachine<?, String, ?, String> hypothesis = learningAlgorithm.getHypothesisModel();
-                PaddingOracleAnalyzer poa = new PaddingOracleAnalyzer();
-		
-		while(learning) {
-			// Write outputs
-			writeDotModel(hypothesis, alphabet, config.output_dir + "/hypothesis_" + round.getCount() + ".dot");
-                        
+            case "ttt":
+                AcexLocalSuffixFinder suffixFinder = new AcexLocalSuffixFinder(AcexAnalyzers.BINARY_SEARCH, true, "Analyzer");
+                learningAlgorithm = new TTTLearnerMealy<String, String>(alphabet, statsCachedMemOracle, suffixFinder);
+                break;
 
-			// Search counter-example
-			SimpleProfiler.start("Searching for counter-example");
-			DefaultQuery<String, Word<String>> counterExample = equivalenceAlgorithm.findCounterExample(hypothesis, alphabet);	
-			SimpleProfiler.stop("Searching for counter-example");
-			
-			if(counterExample == null) {
-				// No counter-example found, so done learning
-				learning = false;
-				
-				// Write outputs
-				writeDotModel(hypothesis, alphabet, config.output_dir + "/learnedModel.dot");
-				//writeAutModel(hypothesis, alphabet, config.output_dir + "/learnedModel.aut");
-			}
-			else {
-				// Counter example found, update hypothesis and continue learning
-				//log.logCounterexample("Counter-example found: " + counterExample.toString());
-				//TODO Add more logging
-				round.increment();
-				//log.logPhase("Starting round " + round.getCount());
-				
-				SimpleProfiler.start("Learning");
-				learningAlgorithm.refineHypothesis(counterExample);
-				SimpleProfiler.stop("Learning");
-				
-				hypothesis = learningAlgorithm.getHypothesisModel();
-			}
-		}
+            case "mp":
+                learningAlgorithm = new MalerPnueliMealy<String, String>(alphabet, statsCachedMemOracle);
+                break;
 
-		SimpleProfiler.stop("Total time");
-		
-		// Output statistics
-		//log.log(Level.INFO, "-------------------------------------------------------");
-		//log.log(Level.INFO, SimpleProfiler.getResults());
-		//log.log(Level.INFO, round.getSummary());
-		//log.log(Level.INFO, statsMemOracle.getStatisticalData().getSummary());
-		//log.log(Level.INFO, statsCachedMemOracle.getStatisticalData().getSummary());
-		//log.log(Level.INFO, statsEqOracle.getStatisticalData().getSummary());
-		//log.log(Level.INFO, statsCachedEqOracle.getStatisticalData().getSummary());
-		log.log(Level.INFO, "States in final hypothesis: " + hypothesis.size());
-                log.log(Level.INFO, "Vulnerable to padding oracle attacks: " + poa.isVulnerableToPaddingOracle(hypothesis, alphabet));
-	}
-	
-	public static void writeAutModel(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet, String filename) throws FileNotFoundException {
-		// Make use of LearnLib's internal representation of states as integers
-		@SuppressWarnings("unchecked")
-		MealyMachine<Integer, String, ?, String> tmpModel = (MealyMachine<Integer, String, ?, String>) model;
-		
-		// Write output to aut-file
-		File autFile = new File(filename);
-		PrintStream psAutFile = new PrintStream(autFile);
-		
-		int nrStates = model.getStates().size();
-		// Compute number of transitions, assuming the graph is complete
-		int nrTransitions = nrStates * alphabet.size();
-		
-		psAutFile.println("des(" + model.getInitialState().toString() + "," + nrTransitions + "," + nrStates + ")");
-		
-		Collection<Integer> states = tmpModel.getStates();
+            case "rs":
+                learningAlgorithm = new RivestSchapireMealy<String, String>(alphabet, statsCachedMemOracle);
+                break;
 
-		for(Integer state: states) {
-			for(String input: alphabet) {
-				String output = tmpModel.getOutput(state, input);
-				Integer successor = tmpModel.getSuccessor(state, input);
-				psAutFile.println("(" + state + ",'" + input + " / " + output + "', " + successor + ")");
-			}
-		}
-		
-		psAutFile.close();
-	}
-	
-	public static void writeDotModel(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet, String filename) throws IOException, InterruptedException {
-		// Write output to dot-file
-		File dotFile = new File(filename);
-		PrintStream psDotFile = new PrintStream(dotFile);
-		GraphDOT.write(model, alphabet, psDotFile);
-		psDotFile.close();
-		
-		//TODO Check if dot is available
-		
-		// Convert .dot to .pdf
-		Runtime.getRuntime().exec("dot -Tpdf -O " + filename);
-	}
-	
-	public void configureLogging(String output_dir) throws SecurityException, IOException {
-	}
-	
-	public static void main(String[] args) throws Exception {
-		if(args.length < 1) {
-			System.err.println("Invalid number of parameters");
-			System.exit(-1);
-		}
-		
-		LearningConfig config = new LearningConfig(args[0]);
-	
-		Learner learner = new Learner(config);
-		learner.learn();
-		
-		System.exit(0);
-	}
+            default:
+                throw new Exception("Unknown learning algorithm " + config.learning_algorithm);
+        }
+    }
+
+    public void loadEquivalenceAlgorithm(String algorithm, SimpleAlphabet<String> alphabet, SUL<String, String> sul) throws Exception {
+        //TODO We could combine the two cached oracle to save some queries to the SUL
+        // Create the equivalence oracle
+        //eqOracle = new SULOracle<String, String>(sul);
+
+        SUL<String, String> sulWrapper = new SUL<String, String>() {
+            boolean sentCCS = false;
+            boolean tainted = false;
+
+            @Override
+            public void pre() {
+                sul.pre();
+                tainted = false;
+                sentCCS = false;
+            }
+
+            @Override
+            public void post() {
+                sul.post();
+            }
+
+            @Nullable
+            @Override
+            public String step(@Nullable String in) throws SULException {
+                if (in.equals("ChangeCipherSpec")) {
+                    this.sentCCS = true;
+                }
+
+                if (tainted || (!sentCCS && (in.equals("PadAppDataPlain")
+                        || in.equals("PadAppDataMac")
+                        || in.equals("PadAppDataFF")
+                        || in.equals("PadAppDataPadding")))) {
+                    tainted = true;
+                    return "not interested";
+                }
+
+                return sul.step(in);
+            }
+        };
+
+        // Add a logging oracle
+        logEqOracle = new MealyLogOracle<String, String>(sulWrapper, LearnLogger.getLogger("equivalence_queries"));
+        // Add an oracle that counts the number of queries
+        statsEqOracle = new MealyCounterOracle<String, String>(logEqOracle, "equivalence queries to SUL");
+        // Use cache oracle to prevent double queries to the SUL
+        //cachedEqOracle = MealyCacheOracle.createDAGCacheOracle(alphabet, statsEqOracle);
+        // Count the number of queries to the cache
+        statsCachedEqOracle = new MealyCounterOracle<String, String>(statsEqOracle, "equivalence queries to cache");
+
+        // Instantiate the selected equivalence algorithm
+        switch (algorithm.toLowerCase()) {
+            case "wmethod":
+                equivalenceAlgorithm = new WMethodEQOracle.MealyWMethodEQOracle<String, String>(config.max_depth, statsCachedEqOracle);
+                break;
+
+            case "modifiedwmethod":
+                equivalenceAlgorithm = new MealyModifiedWMethodEQOracle<String, String>(config.max_depth, statsCachedEqOracle);
+                break;
+
+            case "wpmethod":
+                equivalenceAlgorithm = new WpMethodEQOracle.MealyWpMethodEQOracle<String, String>(config.max_depth, statsCachedEqOracle);
+                break;
+
+            case "randomwords":
+                equivalenceAlgorithm = new MealyRandomWordsEQOracle<String, String>(statsCachedEqOracle, config.min_length, config.max_length, config.nr_queries, new Random(config.seed));
+                break;
+
+            default:
+                throw new Exception("Unknown equivalence algorithm " + config.eqtest);
+        }
+    }
+
+    public void learn() throws IOException, InterruptedException {
+        LearnLogger log = LearnLogger.getLogger(Learner.class.getSimpleName());
+
+        //log.log(Level.INFO, "Using learning algorithm " + learningAlgorithm.getClass().getSimpleName());
+        //log.log(Level.INFO, "Using equivalence algorithm " + equivalenceAlgorithm.getClass().getSimpleName());
+        //log.log(Level.INFO, "Starting learning");
+        SimpleProfiler.start("Total time");
+
+        boolean learning = true;
+        Counter round = new Counter("Rounds", "");
+
+        round.increment();
+        //log.logPhase("Starting round " + round.getCount());
+        SimpleProfiler.start("Learning");
+        learningAlgorithm.startLearning();
+        SimpleProfiler.stop("Learning");
+
+        MealyMachine<?, String, ?, String> hypothesis = learningAlgorithm.getHypothesisModel();
+        PaddingOracleAnalyzer poa = new PaddingOracleAnalyzer();
+
+        while (learning) {
+            // Write outputs
+            writeDotModel(hypothesis, alphabet, config.output_dir + "/hypothesis_" + round.getCount() + ".dot");
+
+            // Search counter-example
+            SimpleProfiler.start("Searching for counter-example");
+            DefaultQuery<String, Word<String>> counterExample = equivalenceAlgorithm.findCounterExample(hypothesis, alphabet);
+            SimpleProfiler.stop("Searching for counter-example");
+
+            if (counterExample == null) {
+                learning = false;
+                writeDotModel(hypothesis, alphabet, config.output_dir + "/learnedModel.dot");
+            } else {
+                round.increment();
+                SimpleProfiler.start("Learning");
+                learningAlgorithm.refineHypothesis(counterExample);
+                SimpleProfiler.stop("Learning");
+
+                hypothesis = learningAlgorithm.getHypothesisModel();
+            }
+        }
+
+        SimpleProfiler.stop("Total time");
+
+        // Output statistics
+        //log.log(Level.INFO, "-------------------------------------------------------");
+        //log.log(Level.INFO, SimpleProfiler.getResults());
+        //log.log(Level.INFO, round.getSummary());
+        //log.log(Level.INFO, statsMemOracle.getStatisticalData().getSummary());
+        //log.log(Level.INFO, statsCachedMemOracle.getStatisticalData().getSummary());
+        //log.log(Level.INFO, statsEqOracle.getStatisticalData().getSummary());
+        //log.log(Level.INFO, statsCachedEqOracle.getStatisticalData().getSummary());
+        log.log(Level.INFO, "States in final hypothesis: " + hypothesis.size());
+        log.log(Level.INFO, "Vulnerable to padding oracle attacks: " + poa.isVulnerableToPaddingOracle(hypothesis, alphabet));
+    }
+
+    public static void writeAutModel(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet, String filename) throws FileNotFoundException {
+        // Make use of LearnLib's internal representation of states as integers
+        @SuppressWarnings("unchecked")
+        MealyMachine<Integer, String, ?, String> tmpModel = (MealyMachine<Integer, String, ?, String>) model;
+
+        // Write output to aut-file
+        File autFile = new File(filename);
+        PrintStream psAutFile = new PrintStream(autFile);
+
+        int nrStates = model.getStates().size();
+        // Compute number of transitions, assuming the graph is complete
+        int nrTransitions = nrStates * alphabet.size();
+
+        psAutFile.println("des(" + model.getInitialState().toString() + "," + nrTransitions + "," + nrStates + ")");
+
+        Collection<Integer> states = tmpModel.getStates();
+
+        for (Integer state : states) {
+            for (String input : alphabet) {
+                String output = tmpModel.getOutput(state, input);
+                Integer successor = tmpModel.getSuccessor(state, input);
+                psAutFile.println("(" + state + ",'" + input + " / " + output + "', " + successor + ")");
+            }
+        }
+
+        psAutFile.close();
+    }
+
+    public static void writeDotModel(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet, String filename) throws IOException, InterruptedException {
+        // Write output to dot-file
+        File dotFile = new File(filename);
+        PrintStream psDotFile = new PrintStream(dotFile);
+        GraphDOT.write(model, alphabet, psDotFile);
+        psDotFile.close();
+
+        //TODO Check if dot is available
+        // Convert .dot to .pdf
+        Runtime.getRuntime().exec("dot -Tpdf -O " + filename);
+    }
+
+    public void configureLogging(String output_dir) throws SecurityException, IOException {
+    }
+
+    public static void main(String[] args) throws Exception {
+        if (args.length < 1) {
+            System.err.println("Invalid number of parameters");
+            System.exit(-1);
+        }
+
+        LearningConfig config = new LearningConfig(args[0]);
+
+        Learner learner = new Learner(config);
+        learner.learn();
+
+        System.exit(0);
+    }
 }
- 
