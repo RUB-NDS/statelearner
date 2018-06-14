@@ -24,10 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Random;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.FileHandler;
 import java.util.logging.Level;
-import java.util.logging.SimpleFormatter;
 
 import de.learnlib.acex.analyzers.AcexAnalyzers;
 import de.learnlib.algorithms.dhc.mealy.MealyDHC;
@@ -51,8 +48,6 @@ import de.learnlib.oracles.DefaultQuery;
 import de.learnlib.oracles.SULOracle;
 import de.learnlib.statistics.Counter;
 import de.learnlib.statistics.SimpleProfiler;
-import java.util.LinkedList;
-import java.util.List;
 import net.automatalib.automata.transout.MealyMachine;
 import net.automatalib.util.graphs.dot.GraphDOT;
 import net.automatalib.words.Word;
@@ -67,8 +62,6 @@ import nl.cypherpunk.statelearner.tls.TLSSUL;
 import nl.cypherpunk.statelearner.LogOracle.MealyLogOracle;
 
 import javax.annotation.Nullable;
-import net.automatalib.automata.dot.DOTHelperMealy;
-import net.automatalib.graphs.dot.GraphDOTHelper;
 
 /**
  * @author Joeri de Ruiter (joeri@cs.ru.nl)
@@ -107,20 +100,17 @@ public class Learner {
 
         // Check the type of learning we want to do and create corresponding configuration and SUL
         if (config.type == LearningConfig.TYPE_SMARTCARD) {
-            log.log(Level.INFO, "Using smartcard SUL");
 
             // Create the smartcard SUL
             sul = new SCSUL(new SCConfig(config));
             alphabet = ((SCSUL) sul).getAlphabet();
         } else if (config.type == LearningConfig.TYPE_SOCKET) {
-            log.log(Level.INFO, "Using socket SUL");
+            //log.log(Level.INFO, "Using socket SUL");
 
             // Create the socket SUL
             sul = new SocketSUL(new SocketConfig(config));
             alphabet = ((SocketSUL) sul).getAlphabet();
         } else if (config.type == LearningConfig.TYPE_TLS) {
-            log.log(Level.INFO, "Using TLS SUL");
-
             // Create the TLS SUL
             sul = new TLSSUL(new TLSConfig(config));
             alphabet = ((TLSSUL) sul).getAlphabet();
@@ -158,10 +148,7 @@ public class Learner {
                     this.sentCCS = true;
                 }
 
-                if (tainted || (!sentCCS && (in.equals("PadAppDataPlain")
-                        || in.equals("PadAppDataMac")
-                        || in.equals("PadAppDataFF")
-                        || in.equals("PadAppDataPadding")))) {
+                if (tainted || (!sentCCS && shouldBeFiltered(in))) {
                     tainted = true;
                     return "not interested";
                 }
@@ -210,6 +197,14 @@ public class Learner {
         }
     }
 
+    public boolean shouldBeFiltered(String in) {
+        if (in.contains("Pad")) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     public void loadEquivalenceAlgorithm(String algorithm, SimpleAlphabet<String> alphabet, SUL<String, String> sul) throws Exception {
         //TODO We could combine the two cached oracle to save some queries to the SUL
         // Create the equivalence oracle
@@ -238,10 +233,7 @@ public class Learner {
                     this.sentCCS = true;
                 }
 
-                if (tainted || (!sentCCS && (in.equals("PadAppDataPlain")
-                        || in.equals("PadAppDataMac")
-                        || in.equals("PadAppDataFF")
-                        || in.equals("PadAppDataPadding")))) {
+                if (tainted || (!sentCCS && shouldBeFiltered(in))) {
                     tainted = true;
                     return "not interested";
                 }
@@ -276,6 +268,8 @@ public class Learner {
             case "randomwords":
                 equivalenceAlgorithm = new MealyRandomWordsEQOracle<String, String>(statsCachedEqOracle, config.min_length, config.max_length, config.nr_queries, new Random(config.seed));
                 break;
+            //case "randomw":
+            //    equivalenceAlgorithm = new WpMethodEQOracle<>
 
             default:
                 throw new Exception("Unknown equivalence algorithm " + config.eqtest);

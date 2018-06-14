@@ -79,7 +79,6 @@ public class SocketSUL implements SUL<String, String> {
 			in.readLine();
 		} catch (Exception e) {
 			e.printStackTrace();
-			System.exit(0);
 		}		
 	}
 	

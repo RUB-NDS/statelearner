@@ -13,7 +13,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 package nl.cypherpunk.statelearner.smartcard;
 
 import java.util.Arrays;
@@ -24,73 +23,75 @@ import de.learnlib.api.SUL;
 
 /**
  * SUL that makes use of the smartcard test service
- * 
+ *
  * @author Joeri de Ruiter (joeri@cs.ru.nl)
  */
 public class SCSUL implements SUL<String, String> {
-	SmartcardTestService scTestService;
-	SimpleAlphabet<String> alphabet;
-	String[] prefix = {};
 
-	public SCSUL(HashMap<String, byte[][]> apduDictionary) throws Exception {
-		// Initialise test service
-		scTestService = new  SmartcardTestService(apduDictionary);
-		alphabet = new SimpleAlphabet<String>(scTestService.getAPDUDictionary().keySet());
-	}
-	
-	public SCSUL(SCConfig config) throws Exception {
-		// Initialise test service
-		scTestService = new SmartcardTestService();
-		scTestService.loadAPDUDictionary(config.apdu_file);
+    SmartcardTestService scTestService;
+    SimpleAlphabet<String> alphabet;
+    String[] prefix = {};
 
-		if(config.alphabet != null)
-			alphabet = new SimpleAlphabet<String>(Arrays.asList(config.alphabet.split(" ")));
-		else
-			alphabet = new SimpleAlphabet<String>(scTestService.getAPDUDictionary().keySet());
+    public SCSUL(HashMap<String, byte[][]> apduDictionary) throws Exception {
+        // Initialise test service
+        scTestService = new SmartcardTestService(apduDictionary);
+        alphabet = new SimpleAlphabet<String>(scTestService.getAPDUDictionary().keySet());
+    }
 
-		if(config.prefix != null)
-			prefix = config.prefix.split(" ");		
-	}
-	
-	public SimpleAlphabet<String> getAlphabet() {
-		// Get alphabet from the SmartcardService's APDU dictionary
-		return alphabet;
-	}
+    public SCSUL(SCConfig config) throws Exception {
+        // Initialise test service
+        scTestService = new SmartcardTestService();
+        scTestService.loadAPDUDictionary(config.apdu_file);
 
-	public String step(String symbol) {
-		String result = "";
-		try {
-			// Process symbol and return result
-			result = scTestService.processCommand(symbol);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return result;
-	}
+        if (config.alphabet != null) {
+            alphabet = new SimpleAlphabet<String>(Arrays.asList(config.alphabet.split(" ")));
+        } else {
+            alphabet = new SimpleAlphabet<String>(scTestService.getAPDUDictionary().keySet());
+        }
 
-	public boolean canFork() {
-		return false;
-	}
+        if (config.prefix != null) {
+            prefix = config.prefix.split(" ");
+        }
+    }
 
-	public SUL<String, String> fork() throws UnsupportedOperationException {
-		throw new UnsupportedOperationException("Cannot fork SCSUL");
-	}
+    public SimpleAlphabet<String> getAlphabet() {
+        // Get alphabet from the SmartcardService's APDU dictionary
+        return alphabet;
+    }
 
-	public void pre() {
-		try {
-			// Reset test service
-			scTestService.reset();
-			
-			for(String cmd: prefix) {
-				scTestService.sendCommand(cmd);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			System.exit(0);
-		}		
-	}
-	
-	public void post() {
-		// Nothing to cleanup
-	}
+    public String step(String symbol) {
+        String result = "";
+        try {
+            // Process symbol and return result
+            result = scTestService.processCommand(symbol);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    public boolean canFork() {
+        return false;
+    }
+
+    public SUL<String, String> fork() throws UnsupportedOperationException {
+        throw new UnsupportedOperationException("Cannot fork SCSUL");
+    }
+
+    public void pre() {
+        try {
+            // Reset test service
+            scTestService.reset();
+
+            for (String cmd : prefix) {
+                scTestService.sendCommand(cmd);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void post() {
+        // Nothing to cleanup
+    }
 }
