@@ -49,7 +49,7 @@ public class SocketSUL implements SUL<String, String> {
 		String result = "";
 		try {
 			// Process symbol and return result
-			System.out.println("Sending symbol: " + symbol);
+			//System.out.println("Sending symbol: " + symbol);
 			out.write(symbol + "\n");
 			out.flush();
 			
@@ -71,7 +71,7 @@ public class SocketSUL implements SUL<String, String> {
 	public void pre() {
 		try {
 			// Reset test service
-			System.out.println("Sending symbol: RESET");
+			//System.out.println("Sending symbol: RESET");
 			out.write("RESET\n");
 			out.flush();
 			

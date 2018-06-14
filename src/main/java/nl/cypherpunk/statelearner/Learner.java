@@ -36,7 +36,6 @@ import de.learnlib.algorithms.kv.mealy.KearnsVaziraniMealy;
 import de.learnlib.algorithms.lstargeneric.mealy.ExtensibleLStarMealyBuilder;
 import de.learnlib.algorithms.malerpnueli.MalerPnueliMealy;
 import de.learnlib.algorithms.rivestschapire.RivestSchapireMealy;
-import de.learnlib.algorithms.ttt.base.TTTState;
 import de.learnlib.algorithms.ttt.mealy.TTTLearnerMealy;
 import de.learnlib.api.EquivalenceOracle;
 import de.learnlib.api.LearningAlgorithm;
@@ -280,10 +279,10 @@ public class Learner {
 	public void learn() throws IOException, InterruptedException {
 		LearnLogger log = LearnLogger.getLogger(Learner.class.getSimpleName());
 
-		log.log(Level.INFO, "Using learning algorithm " + learningAlgorithm.getClass().getSimpleName());
-		log.log(Level.INFO, "Using equivalence algorithm " + equivalenceAlgorithm.getClass().getSimpleName());
+		//log.log(Level.INFO, "Using learning algorithm " + learningAlgorithm.getClass().getSimpleName());
+		//log.log(Level.INFO, "Using equivalence algorithm " + equivalenceAlgorithm.getClass().getSimpleName());
 		
-		log.log(Level.INFO, "Starting learning");
+		//log.log(Level.INFO, "Starting learning");
 		
 		SimpleProfiler.start("Total time");
 		
@@ -291,7 +290,7 @@ public class Learner {
 		Counter round = new Counter("Rounds", "");
 
 		round.increment();
-		log.logPhase("Starting round " + round.getCount());
+		//log.logPhase("Starting round " + round.getCount());
 		SimpleProfiler.start("Learning");
 		learningAlgorithm.startLearning();
 		SimpleProfiler.stop("Learning");
@@ -317,10 +316,10 @@ public class Learner {
 			}
 			else {
 				// Counter example found, update hypothesis and continue learning
-				log.logCounterexample("Counter-example found: " + counterExample.toString());
+				//log.logCounterexample("Counter-example found: " + counterExample.toString());
 				//TODO Add more logging
 				round.increment();
-				log.logPhase("Starting round " + round.getCount());
+				//log.logPhase("Starting round " + round.getCount());
 				
 				SimpleProfiler.start("Learning");
 				learningAlgorithm.refineHypothesis(counterExample);
@@ -333,13 +332,13 @@ public class Learner {
 		SimpleProfiler.stop("Total time");
 		
 		// Output statistics
-		log.log(Level.INFO, "-------------------------------------------------------");
-		log.log(Level.INFO, SimpleProfiler.getResults());
-		log.log(Level.INFO, round.getSummary());
-		log.log(Level.INFO, statsMemOracle.getStatisticalData().getSummary());
-		log.log(Level.INFO, statsCachedMemOracle.getStatisticalData().getSummary());
-		log.log(Level.INFO, statsEqOracle.getStatisticalData().getSummary());
-		log.log(Level.INFO, statsCachedEqOracle.getStatisticalData().getSummary());
+		//log.log(Level.INFO, "-------------------------------------------------------");
+		//log.log(Level.INFO, SimpleProfiler.getResults());
+		//log.log(Level.INFO, round.getSummary());
+		//log.log(Level.INFO, statsMemOracle.getStatisticalData().getSummary());
+		//log.log(Level.INFO, statsCachedMemOracle.getStatisticalData().getSummary());
+		//log.log(Level.INFO, statsEqOracle.getStatisticalData().getSummary());
+		//log.log(Level.INFO, statsCachedEqOracle.getStatisticalData().getSummary());
 		log.log(Level.INFO, "States in final hypothesis: " + hypothesis.size());		
 	}
 	
@@ -385,32 +384,6 @@ public class Learner {
 	}
 	
 	public void configureLogging(String output_dir) throws SecurityException, IOException {
-		LearnLogger loggerLearnlib = LearnLogger.getLogger("de.learnlib");
-		loggerLearnlib.setLevel(Level.ALL);
-		FileHandler fhLearnlibLog = new FileHandler(output_dir + "/learnlib.log");
-		loggerLearnlib.addHandler(fhLearnlibLog);
-		fhLearnlibLog.setFormatter(new SimpleFormatter());
-		
-		LearnLogger loggerLearner = LearnLogger.getLogger(Learner.class.getSimpleName());
-		loggerLearner.setLevel(Level.ALL);
-		FileHandler fhLearnerLog = new FileHandler(output_dir + "/learner.log");
-		loggerLearner.addHandler(fhLearnerLog);
-		fhLearnerLog.setFormatter(new SimpleFormatter());
-		loggerLearner.addHandler(new ConsoleHandler());
-		
-		LearnLogger loggerLearningQueries = LearnLogger.getLogger("learning_queries");
-		loggerLearningQueries.setLevel(Level.ALL);
-		FileHandler fhLearningQueriesLog = new FileHandler(output_dir + "/learning_queries.log");
-		loggerLearningQueries.addHandler(fhLearningQueriesLog);
-		fhLearningQueriesLog.setFormatter(new SimpleFormatter());
-		loggerLearningQueries.addHandler(new ConsoleHandler());		
-
-		LearnLogger loggerEquivalenceQueries = LearnLogger.getLogger("equivalence_queries");
-		loggerEquivalenceQueries.setLevel(Level.ALL);
-		FileHandler fhEquivalenceQueriesLog = new FileHandler(output_dir + "/equivalence_queries.log");
-		loggerEquivalenceQueries.addHandler(fhEquivalenceQueriesLog);
-		fhEquivalenceQueriesLog.setFormatter(new SimpleFormatter());
-		loggerEquivalenceQueries.addHandler(new ConsoleHandler());	
 	}
 	
 	public static void main(String[] args) throws Exception {

@@ -61,7 +61,7 @@ public class LogOracle<I, D> implements MealyMembershipOracle<I,D> {
 				wbSuffix.add(this.sul.step(sym));
 			}
 		
-	    	logger.logQuery("[" + prefix.toString() + " | " + suffix.toString() +  " / " + wbPrefix.toWord().toString() + " | " + wbSuffix.toWord().toString() + "]");
+	    	//logger.logQuery("[" + prefix.toString() + " | " + suffix.toString() +  " / " + wbPrefix.toWord().toString() + " | " + wbSuffix.toWord().toString() + "]");
 	    	
 			return wbSuffix.toWord();
 		}
