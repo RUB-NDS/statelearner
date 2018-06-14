@@ -329,7 +329,8 @@ public class Learner {
         //log.log(Level.INFO, statsEqOracle.getStatisticalData().getSummary());
         //log.log(Level.INFO, statsCachedEqOracle.getStatisticalData().getSummary());
         log.log(Level.INFO, "States in final hypothesis: " + hypothesis.size());
-        log.log(Level.INFO, "Vulnerable to padding oracle attacks: " + poa.isVulnerableToPaddingOracle(hypothesis, alphabet));
+        log.log(Level.INFO, "Vulnerable to padding oracle attacks: " + PaddingOracleAnalyzer.isVulnerableToCbcPaddingOracleAttack(hypothesis, alphabet));
+        log.log(Level.INFO, "Contains a valid TLS handshake: " + HandshakeAnalyzer.containsValidHandshake(hypothesis, alphabet));
     }
 
     public static void writeAutModel(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet, String filename) throws FileNotFoundException {

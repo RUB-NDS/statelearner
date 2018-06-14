@@ -21,11 +21,19 @@ public class PaddingOracleAnalyzer {
     
     private static final String BLEICHENBACHER_MESSAGE_START = "bleichenbacher";
 
-    public static boolean isVulnerableToPaddingOracle(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet) {
+    public static boolean isVulnerableToCbcPaddingOracleAttack(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet) {
+        return isVulnerableToPaddingOracleAttack(model, alphabet, PADDING_MESSAGE_START);
+    }
+    
+    public static boolean isVulnerableToBleichenbacherAttack(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet) {
+        return isVulnerableToPaddingOracleAttack(model, alphabet, BLEICHENBACHER_MESSAGE_START);
+    }
+    
+    private static boolean isVulnerableToPaddingOracleAttack(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet, String transitionFilter) {
         MealyMachine<Object, String, ?, String> tmpModel = (MealyMachine<Object, String, ?, String>) model;
         List<String> analyzedTransitions = new LinkedList<>();
         for (String s : alphabet) {
-            if (s.startsWith(PADDING_MESSAGE_START)) {
+            if (s.startsWith(transitionFilter)) {
                 analyzedTransitions.add(s);
             }
         }
