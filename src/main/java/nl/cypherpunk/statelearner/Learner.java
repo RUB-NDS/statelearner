@@ -53,6 +53,8 @@ import de.learnlib.oracles.DefaultQuery;
 import de.learnlib.oracles.SULOracle;
 import de.learnlib.statistics.Counter;
 import de.learnlib.statistics.SimpleProfiler;
+import java.util.LinkedList;
+import java.util.List;
 import net.automatalib.automata.transout.MealyMachine;
 import net.automatalib.util.graphs.dot.GraphDOT;
 import net.automatalib.words.Word;
@@ -67,6 +69,8 @@ import nl.cypherpunk.statelearner.tls.TLSSUL;
 import nl.cypherpunk.statelearner.LogOracle.MealyLogOracle;
 
 import javax.annotation.Nullable;
+import net.automatalib.automata.dot.DOTHelperMealy;
+import net.automatalib.graphs.dot.GraphDOTHelper;
 
 /**
  * @author Joeri de Ruiter (joeri@cs.ru.nl)
@@ -158,6 +162,7 @@ public class Learner {
 
 				if (tainted || (!sentCCS && (in.equals("PadAppDataPlain")
 						|| in.equals("PadAppDataMac")
+                                                || in.equals("PadAppDataFF")
 						|| in.equals("PadAppDataPadding")))) {
 				    tainted = true;
 					return "not interested";
@@ -297,10 +302,13 @@ public class Learner {
 		SimpleProfiler.stop("Learning");
 
 		MealyMachine<?, String, ?, String> hypothesis = learningAlgorithm.getHypothesisModel();
+                PaddingOracleAnalyzer poa = new PaddingOracleAnalyzer();
 		
 		while(learning) {
 			// Write outputs
 			writeDotModel(hypothesis, alphabet, config.output_dir + "/hypothesis_" + round.getCount() + ".dot");
+                        log.log(Level.INFO, "Vulnerable to padding oracle attacks: " + poa.isVulnerableToPaddingOracle(hypothesis, alphabet));
+                        
 
 			// Search counter-example
 			SimpleProfiler.start("Searching for counter-example");
@@ -340,7 +348,8 @@ public class Learner {
 		log.log(Level.INFO, statsCachedMemOracle.getStatisticalData().getSummary());
 		log.log(Level.INFO, statsEqOracle.getStatisticalData().getSummary());
 		log.log(Level.INFO, statsCachedEqOracle.getStatisticalData().getSummary());
-		log.log(Level.INFO, "States in final hypothesis: " + hypothesis.size());		
+		log.log(Level.INFO, "States in final hypothesis: " + hypothesis.size());
+                log.log(Level.INFO, "Vulnerable to padding oracle attacks: " + poa.isVulnerableToPaddingOracle(hypothesis, alphabet));
 	}
 	
 	public static void writeAutModel(MealyMachine<?, String, ?, String> model, SimpleAlphabet<String> alphabet, String filename) throws FileNotFoundException {
@@ -427,3 +436,4 @@ public class Learner {
 		System.exit(0);
 	}
 }
+ 
